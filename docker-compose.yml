@@ -1,0 +1,15 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: printease-postgres
+    environment:
+      POSTGRES_DB: printease_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - printease_pgdata:/var/lib/postgresql/data
+
+volumes:
+  printease_pgdata:
