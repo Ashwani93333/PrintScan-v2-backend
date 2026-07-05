@@ -52,7 +52,11 @@ public class PublicJobController {
             @RequestParam(value = "options", required = false) String optionsJson,
             @RequestParam("files") List<MultipartFile> files) {
 
+        log.info(">>> POST /api/public/shops/{}/jobs | fileCount={} | hasOptions={} | hasInstructions={}",
+                slug, files.size(), optionsJson != null, specialInstructions != null);
+
         if (!bucket.tryConsume(1)) {
+            log.warn("RATE LIMITED | POST /api/public/shops/{}/jobs | Too many requests", slug);
             return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS).build();
         }
 
@@ -60,8 +64,9 @@ public class PublicJobController {
         if (optionsJson != null && !optionsJson.isBlank()) {
             try {
                 options = objectMapper.readValue(optionsJson, new TypeReference<List<FileOptionRequest>>() {});
+                log.info("Parsed {} file option(s) for shop={}", options.size(), slug);
             } catch (Exception e) {
-                log.warn("Failed to parse options JSON: {}", e.getMessage());
+                log.warn("Failed to parse options JSON for shop={}: {}", slug, e.getMessage());
                 throw new BadRequestException("Invalid options JSON format");
             }
         }
@@ -70,6 +75,8 @@ public class PublicJobController {
                 slug,
                 specialInstructions, options, files);
 
+        log.info("<<< POST /api/public/shops/{}/jobs | CREATED | jobId={} | token={} | totalPages={} | cost={}",
+                slug, response.getId(), response.getAccessToken(), response.getTotalPages(), response.getEstimatedCost());
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
@@ -78,6 +85,9 @@ public class PublicJobController {
      */
     @GetMapping("/shops/{slug}/jobs/{token}")
     public ResponseEntity<PrintJobResponse> getJobByShopAndToken(@PathVariable String slug, @PathVariable String token) {
-        return ResponseEntity.ok(printJobService.getJobByShopAndToken(slug, token));
+        log.info(">>> GET /api/public/shops/{}/jobs/{}", slug, token);
+        PrintJobResponse response = printJobService.getJobByShopAndToken(slug, token);
+        log.info("<<< GET /api/public/shops/{}/jobs/{} | SUCCESS | status={}", slug, token, response.getStatus());
+        return ResponseEntity.ok(response);
     }
 }

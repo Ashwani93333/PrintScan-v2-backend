@@ -20,7 +20,7 @@ public class ShopResponse {
     private String phone;
     private String email;
     private String description;
-    private Boolean isActive;
+    private Boolean adminIsActive;
     private Boolean isApproved;
     private String adminId;
     private String adminEmail;

@@ -7,6 +7,7 @@ import com.printease.backend.entity.enums.JobStatus;
 import com.printease.backend.repository.PrintJobRepository;
 import com.printease.backend.repository.ShopRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -18,6 +19,7 @@ import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class AnalyticsService {
 
     private final ShopRepository shopRepository;
@@ -25,13 +27,16 @@ public class AnalyticsService {
 
     @Transactional(readOnly = true)
     public AnalyticsResponse getAnalytics(Instant from, Instant to) {
+        log.info("Fetching global analytics | from={} | to={}", from, to);
         long totalShops = shopRepository.count();
-        long activeShops = shopRepository.countByIsActiveTrue();
+        long approvedShops = shopRepository.countByIsApprovedTrue();
         long totalJobs = printJobRepository.countByCreatedAtBetween(from, to);
         long completedJobs = printJobRepository.countByStatus(JobStatus.COMPLETED);
         long cancelledJobs = printJobRepository.countByStatus(JobStatus.CANCELLED);
 
         List<PrintJob> jobsInRange = printJobRepository.findAllByCreatedAtBetween(from, to);
+        log.info("Analytics data | totalShops={} | approvedShops={} | totalJobs={} | completed={} | cancelled={} | jobsInRange={}",
+                totalShops, approvedShops, totalJobs, completedJobs, cancelledJobs, jobsInRange.size());
 
         // Jobs by date
         Map<LocalDate, Long> byDate = jobsInRange.stream()
@@ -63,9 +68,10 @@ public class AnalyticsService {
             return m;
         }).collect(Collectors.toList());
 
+        log.info("Analytics complete | {} date entries | {} shop rates computed", jobsByDate.size(), shopRates.size());
         return AnalyticsResponse.builder()
                 .totalShops(totalShops)
-                .activeShops(activeShops)
+                .approvedShops(approvedShops)
                 .totalJobs(totalJobs)
                 .completedJobs(completedJobs)
                 .cancelledJobs(cancelledJobs)
@@ -76,11 +82,14 @@ public class AnalyticsService {
 
     @Transactional(readOnly = true)
     public com.printease.backend.dto.response.ShopFileStatsResponse getShopFileStats(UUID shopId, Instant from, Instant to) {
+        log.info("Fetching shop file stats | shopId={} | from={} | to={}", shopId, from, to);
         long totalJobs = printJobRepository.countByShopIdAndCreatedAtBetween(shopId, from, to);
         long completedJobs = printJobRepository.countByShopIdAndStatusAndCreatedAtBetween(shopId, JobStatus.COMPLETED, from, to);
         long totalPages = printJobRepository.sumTotalPagesByShopIdAndStatusCompletedAndCreatedAtBetween(shopId, from, to);
         java.math.BigDecimal totalRevenew = printJobRepository.sumEstimatedCostByShopIdAndStatusCompletedAndCreatedAtBetween(shopId, from, to);
         
+        log.info("Shop file stats complete | shopId={} | totalJobs={} | completed={} | pages={} | revenue={}",
+                shopId, totalJobs, completedJobs, totalPages, totalRevenew);
         return com.printease.backend.dto.response.ShopFileStatsResponse.builder()
                 .totalJobs(totalJobs)
                 .totalRevenew(totalRevenew)

@@ -51,17 +51,23 @@ public class PrintJobService {
                                       List<FileOptionRequest> options,
                                       List<MultipartFile> files) {
 
-        Shop shop = shopRepository.findBySlugAndIsApprovedTrueAndIsActiveTrue(shopSlug)
-                .orElseThrow(() -> new ResourceNotFoundException("Shop", "slug", shopSlug));
+        log.info("submitJob | Looking up shop by slug={}", shopSlug);
+        Shop shop = shopRepository.findBySlugAndIsApprovedTrue(shopSlug)
+                .orElseThrow(() -> {
+                    log.error("submitJob FAILED | Shop not found for slug={}", shopSlug);
+                    return new ResourceNotFoundException("Shop", "slug", shopSlug);
+                });
 
         ShopRequirements req = shop.getRequirements();
         if (req == null) {
+            log.error("submitJob FAILED | Shop requirements not configured | shopId={}", shop.getId());
             throw new BadRequestException("Shop requirements not configured");
         }
 
         // Validate files against shop requirements
         List<String> errors = pricingService.validateFiles(files, req);
         if (!errors.isEmpty()) {
+            log.warn("submitJob FAILED | File validation errors | shop={} | errors={}", shopSlug, errors);
             throw new BadRequestException("File validation failed: " + String.join("; ", errors));
         }
 
@@ -90,6 +96,7 @@ public class PrintJobService {
                     : new FileOptionRequest();
             fileIndex++;
 
+            log.info("submitJob | Storing file #{} | name={} | size={} bytes", fileIndex, originalName, file.getSize());
             String storedPath = fileStorageService.store(file, shop.getSlug(), job.getId());
 
             int autoCalculatedPageCount = documentProcessingService.calculatePageCount(file);
@@ -128,22 +135,31 @@ public class PrintJobService {
 
     @Transactional(readOnly = true)
     public PrintJobResponse getJobByShopAndToken(String shopSlug, String token) {
+        log.info("getJobByShopAndToken | shop={} | token={}", shopSlug, token);
         PrintJob job = printJobRepository.findFirstByShopSlugAndAccessTokenOrderByCreatedAtDesc(shopSlug, token.toUpperCase())
-                .orElseThrow(() -> new ResourceNotFoundException(
-                        "PrintJob", "accessToken", token));
+                .orElseThrow(() -> {
+                    log.warn("getJobByShopAndToken | NOT FOUND | shop={} | token={}", shopSlug, token);
+                    return new ResourceNotFoundException("PrintJob", "accessToken", token);
+                });
+        log.info("getJobByShopAndToken | FOUND | jobId={} | status={}", job.getId(), job.getStatus());
         return toJobResponse(job);
     }
 
     @Transactional(readOnly = true)
     public PrintJobResponse getJobByShopIdAndToken(UUID shopId, String token) {
+        log.info("getJobByShopIdAndToken | shopId={} | token={}", shopId, token);
         PrintJob job = printJobRepository.findFirstByShopIdAndAccessTokenOrderByCreatedAtDesc(shopId, token.toUpperCase())
-                .orElseThrow(() -> new ResourceNotFoundException(
-                        "PrintJob", "accessToken", token));
+                .orElseThrow(() -> {
+                    log.warn("getJobByShopIdAndToken | NOT FOUND | shopId={} | token={}", shopId, token);
+                    return new ResourceNotFoundException("PrintJob", "accessToken", token);
+                });
+        log.info("getJobByShopIdAndToken | FOUND | jobId={} | status={}", job.getId(), job.getStatus());
         return toJobResponse(job);
     }
 
     @Transactional(readOnly = true)
     public DashboardStatsResponse getDashboardStats(UUID shopId) {
+        log.info("getDashboardStats | shopId={}", shopId);
         long totalJobs = printJobRepository.countByShopId(shopId);
         long totalPagesPrinted = printJobRepository
                 .sumTotalPagesByShopIdAndStatusCompleted(shopId);
@@ -154,6 +170,8 @@ public class PrintJobService {
         List<PrintJob> recent = printJobRepository
                 .findTop10ByShopIdOrderByCreatedAtDesc(shopId);
 
+        log.info("getDashboardStats | shopId={} | totalJobs={} | pages={} | revenue={} | recentCount={}",
+                shopId, totalJobs, totalPagesPrinted, totalRevenue, recent.size());
         return DashboardStatsResponse.builder()
                 .totalJobs(totalJobs)
                 .totalPagesPrinted(totalPagesPrinted)
@@ -166,27 +184,38 @@ public class PrintJobService {
     @Transactional(readOnly = true)
     public Page<PrintJobResponse> getJobsByShop(UUID shopId, JobStatus status,
                                                  String query, Pageable pageable) {
-        return printJobRepository
+        log.info("getJobsByShop | shopId={} | status={} | query={} | page={}", shopId, status, query, pageable.getPageNumber());
+        Page<PrintJobResponse> result = printJobRepository
                 .findByShopIdWithFilters(shopId, status, query, pageable)
                 .map(this::toJobResponse);
+        log.info("getJobsByShop | shopId={} | returned {} of {} total", shopId, result.getNumberOfElements(), result.getTotalElements());
+        return result;
     }
 
     @Transactional(readOnly = true)
     public PrintJobResponse getJobById(UUID jobId) {
+        log.info("getJobById | jobId={}", jobId);
         PrintJob job = printJobRepository.findById(jobId)
-                .orElseThrow(() -> new ResourceNotFoundException(
-                        "PrintJob", "id", jobId));
+                .orElseThrow(() -> {
+                    log.warn("getJobById | NOT FOUND | jobId={}", jobId);
+                    return new ResourceNotFoundException("PrintJob", "id", jobId);
+                });
+        log.info("getJobById | FOUND | jobId={} | status={}", jobId, job.getStatus());
         return toJobResponse(job);
     }
 
     @Transactional
     public PrintJobResponse updateJob(UUID jobId, JobUpdateRequest request,
                                        UUID adminShopId) {
+        log.info("updateJob | jobId={} | newStatus={} | adminShopId={}", jobId, request.getStatus(), adminShopId);
         PrintJob job = printJobRepository.findById(jobId)
-                .orElseThrow(() -> new ResourceNotFoundException(
-                        "PrintJob", "id", jobId));
+                .orElseThrow(() -> {
+                    log.error("updateJob FAILED | Job not found | jobId={}", jobId);
+                    return new ResourceNotFoundException("PrintJob", "id", jobId);
+                });
 
         if (!job.getShop().getId().equals(adminShopId)) {
+            log.warn("updateJob FAILED | Job belongs to shop={} not admin's shop={}", job.getShop().getId(), adminShopId);
             throw new BadRequestException("This job does not belong to your shop");
         }
 
@@ -196,18 +225,22 @@ public class PrintJobService {
             try {
                 newStatus = JobStatus.valueOf(request.getStatus());
             } catch (IllegalArgumentException e) {
+                log.warn("updateJob FAILED | Invalid status value: {}", request.getStatus());
                 throw new BadRequestException("Invalid status: " + request.getStatus());
             }
             if (!job.getStatus().canTransitionTo(newStatus)) {
+                log.warn("updateJob FAILED | Invalid transition {} → {} | jobId={}", job.getStatus(), newStatus, jobId);
                 throw new BadRequestException("Invalid status transition: "
                         + job.getStatus() + " → " + newStatus);
             }
 
             if (java.time.Instant.now().minus(24, java.time.temporal.ChronoUnit.HOURS).isAfter(job.getCreatedAt())) {
+                log.warn("updateJob FAILED | Token expired (>24h) | jobId={} | createdAt={}", jobId, job.getCreatedAt());
                 throw new BadRequestException("token expired");
             }
 
             job.setStatus(newStatus);
+            log.info("updateJob | Status changed: {} → {} | jobId={}", job.getStatus(), newStatus, jobId);
         }
 
 
@@ -256,9 +289,11 @@ public class PrintJobService {
 
     @Transactional(readOnly = true)
     public ResponseEntity<Resource> downloadFile(UUID fileId, UUID shopId, String action) {
+        log.info("downloadFile | fileId={} | shopId={} | action={}", fileId, shopId, action);
         PrintFile printFile = getFileWithOwnership(fileId, shopId);
         
         if (java.time.Instant.now().minus(24, java.time.temporal.ChronoUnit.HOURS).isAfter(printFile.getJob().getCreatedAt())) {
+            log.warn("downloadFile FAILED | File expired | fileId={} | createdAt={}", fileId, printFile.getJob().getCreatedAt());
             throw new BadRequestException("File has expired and is no longer available.");
         }
 

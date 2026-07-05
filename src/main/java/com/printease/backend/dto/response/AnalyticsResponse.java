@@ -15,7 +15,7 @@ import java.util.Map;
 public class AnalyticsResponse {
 
     private long totalShops;
-    private long activeShops;
+    private long approvedShops;
     private long totalJobs;
     private long completedJobs;
     private long cancelledJobs;

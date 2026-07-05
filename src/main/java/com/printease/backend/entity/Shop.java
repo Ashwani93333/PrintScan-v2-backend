@@ -42,9 +42,6 @@ public class Shop {
     @Column(columnDefinition = "TEXT")
     private String description;
 
-    @Column(name = "is_active")
-    @Builder.Default
-    private Boolean isActive = true;
 
     @Column(name = "is_approved")
     @Builder.Default

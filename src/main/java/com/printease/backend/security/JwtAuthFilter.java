@@ -3,6 +3,7 @@ package com.printease.backend.security;
 import com.printease.backend.entity.User;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
+import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
@@ -29,6 +30,9 @@ public class JwtAuthFilter extends OncePerRequestFilter {
     protected void doFilterInternal(HttpServletRequest request,
                                     HttpServletResponse response,
                                     FilterChain filterChain) throws ServletException, IOException {
+        String method = request.getMethod();
+        String uri = request.getRequestURI();
+
         try {
             String jwt = extractJwt(request);
             if (jwt != null && tokenProvider.validateToken(jwt)) {
@@ -51,16 +55,32 @@ public class JwtAuthFilter extends OncePerRequestFilter {
                             new UsernamePasswordAuthenticationToken(principal, null, principal.getAuthorities());
                     authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
                     SecurityContextHolder.getContext().setAuthentication(authentication);
+                    log.debug("AUTH OK | {} {} | user={} | role={}", method, uri, user.getEmail(), user.getRole());
+                } else {
+                    log.warn("AUTH FAIL | {} {} | userId={} | user={} active={}",
+                            method, uri, userId,
+                            user != null ? "found" : "NOT_FOUND",
+                            user != null ? user.getIsActive() : "N/A");
                 }
+            } else if (jwt != null) {
+                log.warn("AUTH FAIL | {} {} | invalid/expired JWT token", method, uri);
             }
         } catch (Exception ex) {
-            log.error("Could not set user authentication in security context", ex);
+            log.error("AUTH ERROR | {} {} | Could not set user authentication: {}", method, uri, ex.getMessage(), ex);
         }
 
         filterChain.doFilter(request, response);
     }
 
     private String extractJwt(HttpServletRequest request) {
+        if (request.getCookies() != null) {
+            for (Cookie cookie : request.getCookies()) {
+                if ("printease_token".equals(cookie.getName())) {
+                    return cookie.getValue();
+                }
+            }
+        }
+        
         String bearerToken = request.getHeader("Authorization");
         if (StringUtils.hasText(bearerToken) && bearerToken.startsWith("Bearer ")) {
             return bearerToken.substring(7);

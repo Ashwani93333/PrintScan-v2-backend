@@ -38,6 +38,10 @@ public class JwtTokenProvider {
         this.expirationMs = expirationMs;
     }
 
+    public long getExpirationMs() {
+        return expirationMs;
+    }
+
     public String generateToken(UUID userId, String email, String role, UUID shopId) {
         Date now = new Date();
         Date expiry = new Date(now.getTime() + expirationMs);

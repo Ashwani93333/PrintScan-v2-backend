@@ -14,7 +14,7 @@ public interface ShopRepository extends JpaRepository<Shop, UUID> {
 
     Optional<Shop> findBySlug(String slug);
 
-    Optional<Shop> findBySlugAndIsApprovedTrueAndIsActiveTrue(String slug);
+    Optional<Shop> findBySlugAndIsApprovedTrue(String slug);
 
     Optional<Shop> findByAdminId(UUID adminId);
 
@@ -22,7 +22,7 @@ public interface ShopRepository extends JpaRepository<Shop, UUID> {
 
     boolean existsByAdminId(UUID adminId);
 
-    long countByIsActiveTrue();
+    long countByIsApprovedTrue();
 
     Page<Shop> findAll(Pageable pageable);
 }

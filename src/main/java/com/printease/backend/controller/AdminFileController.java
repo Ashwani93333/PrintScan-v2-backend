@@ -5,6 +5,7 @@ import com.printease.backend.security.UserPrincipal;
 import com.printease.backend.service.FileStorageService;
 import com.printease.backend.service.PrintJobService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.io.Resource;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -18,6 +19,7 @@ import java.util.UUID;
 @RestController
 @RequestMapping("/api/admin")
 @RequiredArgsConstructor
+@Slf4j
 public class AdminFileController {
 
     private final PrintJobService printJobService;
@@ -27,7 +29,11 @@ public class AdminFileController {
             @PathVariable UUID fileId,
             @RequestParam(value = "action", required = false, defaultValue = "download") String action,
             @AuthenticationPrincipal UserPrincipal principal) {
+        log.info(">>> GET /api/admin/files/{}/download | action={} | user={} | shopId={}",
+                fileId, action, principal.getEmail(), principal.getShopId());
         
-        return printJobService.downloadFile(fileId, principal.getShopId(), action);
+        ResponseEntity<Resource> response = printJobService.downloadFile(fileId, principal.getShopId(), action);
+        log.info("<<< GET /api/admin/files/{}/download | SUCCESS | action={}", fileId, action);
+        return response;
     }
 }

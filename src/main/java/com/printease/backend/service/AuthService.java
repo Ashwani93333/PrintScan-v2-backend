@@ -31,14 +31,20 @@ public class AuthService {
 
     @Transactional(readOnly = true)
     public JwtResponse login(LoginRequest request) {
+        log.info("Login attempt for email={}", request.getEmail());
         User user = userRepository.findByEmail(request.getEmail())
-                .orElseThrow(() -> new UnauthorizedException("Invalid email or password"));
+                .orElseThrow(() -> {
+                    log.warn("Login FAILED | email={} | user not found", request.getEmail());
+                    return new UnauthorizedException("Invalid email or password");
+                });
 
         if (!user.getIsActive()) {
+            log.warn("Login FAILED | email={} | account disabled", request.getEmail());
             throw new UnauthorizedException("Account is disabled");
         }
 
         if (!passwordEncoder.matches(request.getPassword(), user.getPasswordHash())) {
+            log.warn("Login FAILED | email={} | wrong password", request.getEmail());
             throw new UnauthorizedException("Invalid email or password");
         }
 
@@ -50,16 +56,21 @@ public class AuthService {
             if (shop != null) {
                 shopId = shop.getId();
                 shopSlug = shop.getSlug();
+                log.info("Login | Resolved shop for ADMIN | shopId={} | slug={}", shopId, shopSlug);
+            } else {
+                log.warn("Login | ADMIN user has no shop assigned | userId={}", user.getId());
             }
         }
 
         String token = jwtTokenProvider.generateToken(user.getId(), user.getEmail(), user.getRole().name(), shopId);
 
+        log.info("Login SUCCESS | email={} | role={} | shopId={}", user.getEmail(), user.getRole(), shopId);
         return JwtResponse.builder()
                 .token(token)
                 .type("Bearer")
                 .role(user.getRole().name())
                 .name(user.getName())
+                .email(user.getEmail())
                 .shopId(shopId != null ? shopId.toString() : null)
                 .shopSlug(shopSlug)
                 .build();
@@ -67,10 +78,15 @@ public class AuthService {
 
     @Transactional
     public void changePassword(UserPrincipal principal, ChangePasswordRequest request) {
+        log.info("Change password attempt | userId={} | email={}", principal.getId(), principal.getEmail());
         User user = userRepository.findById(principal.getId())
-                .orElseThrow(() -> new UnauthorizedException("User not found"));
+                .orElseThrow(() -> {
+                    log.error("Change password FAILED | userId={} | user not found in DB", principal.getId());
+                    return new UnauthorizedException("User not found");
+                });
 
         if (!passwordEncoder.matches(request.getCurrentPassword(), user.getPasswordHash())) {
+            log.warn("Change password FAILED | email={} | current password incorrect", user.getEmail());
             throw new BadRequestException("Current password is incorrect");
         }
 

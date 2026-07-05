@@ -45,17 +45,27 @@ public class ShopService {
 
     @Transactional(readOnly = true)
     public ShopResponse getPublicShopBySlug(String slug) {
-        Shop shop = shopRepository.findBySlugAndIsApprovedTrueAndIsActiveTrue(slug)
-                .orElseThrow(() -> new ResourceNotFoundException("Shop", "slug", slug));
+        log.info("getPublicShopBySlug | slug={}", slug);
+        Shop shop = shopRepository.findBySlugAndIsApprovedTrue(slug)
+                .orElseThrow(() -> {
+                    log.warn("getPublicShopBySlug | NOT FOUND (or not approved) | slug={}", slug);
+                    return new ResourceNotFoundException("Shop", "slug", slug);
+                });
+        log.info("getPublicShopBySlug | FOUND | shopId={} | name={}", shop.getId(), shop.getName());
         return toShopResponse(shop);
     }
 
     @Transactional
     public void incrementQrVisits(String slug) {
-        Shop shop = shopRepository.findBySlugAndIsApprovedTrueAndIsActiveTrue(slug)
-                .orElseThrow(() -> new ResourceNotFoundException("Shop", "slug", slug));
+        log.info("incrementQrVisits | slug={}", slug);
+        Shop shop = shopRepository.findBySlugAndIsApprovedTrue(slug)
+                .orElseThrow(() -> {
+                    log.warn("incrementQrVisits | Shop NOT FOUND | slug={}", slug);
+                    return new ResourceNotFoundException("Shop", "slug", slug);
+                });
         shop.setQrVisits(shop.getQrVisits() + 1);
         shopRepository.save(shop);
+        log.info("incrementQrVisits | slug={} | newCount={}", slug, shop.getQrVisits());
     }
 
     //public shop register
@@ -63,16 +73,17 @@ public class ShopService {
     public ShopResponse registerShop(RegisterShopRequest request) {
         validateUniqueShopFields(request.getSlug(), request.getAdminEmail());
 
-        // Create the admin user
+        // Create the admin user — inactive by default, SuperAdmin must approve
         User admin = User.builder()
                 .name(request.getAdminName())
                 .email(request.getAdminEmail())
                 .passwordHash(passwordEncoder.encode(request.getPassword()))
                 .role(Role.ADMIN)
                 .phone(request.getPhone())
-                .isActive(true)
+                .isActive(false)
                 .build();
         admin = userRepository.save(admin);
+        log.info("registerShop | Admin user created (INACTIVE) | email={} | userId={}", admin.getEmail(), admin.getId());
 
         // Create the shop (unapproved)
         Shop shop = Shop.builder()
@@ -82,7 +93,6 @@ public class ShopService {
                 .phone(request.getPhone())
                 .email(request.getEmail())
                 .description(request.getDescription())
-                .isActive(true)
                 .isApproved(false)
                 .admin(admin)
                 .qrVisits(0)
@@ -100,7 +110,7 @@ public class ShopService {
         shopRequirementsRepository.save(requirements);
         shop.setRequirements(requirements);
 
-        log.info("New shop registration: {} (slug: {})", shop.getName(), shop.getSlug());
+        log.info("registerShop | New shop registration: {} (slug: {}, unapproved, admin inactive)", shop.getName(), shop.getSlug());
         return toShopResponse(shop);
     }
 
@@ -108,15 +118,24 @@ public class ShopService {
 
     @Transactional(readOnly = true)
     public ShopResponse getShopById(UUID shopId) {
+        log.info("getShopById | shopId={}", shopId);
         Shop shop = shopRepository.findById(shopId)
-                .orElseThrow(() -> new ResourceNotFoundException("Shop", "id", shopId));
+                .orElseThrow(() -> {
+                    log.warn("getShopById | NOT FOUND | shopId={}", shopId);
+                    return new ResourceNotFoundException("Shop", "id", shopId);
+                });
+        log.info("getShopById | FOUND | name={}", shop.getName());
         return toShopResponse(shop);
     }
 
     @Transactional
     public ShopResponse updateShopProfile(UUID shopId, ShopProfileUpdateRequest request) {
+        log.info("updateShopProfile | shopId={}", shopId);
         Shop shop = shopRepository.findById(shopId)
-                .orElseThrow(() -> new ResourceNotFoundException("Shop", "id", shopId));
+                .orElseThrow(() -> {
+                    log.warn("updateShopProfile | NOT FOUND | shopId={}", shopId);
+                    return new ResourceNotFoundException("Shop", "id", shopId);
+                });
 
         if (request.getName() != null) shop.setName(request.getName());
         if (request.getAddress() != null) shop.setAddress(request.getAddress());
@@ -150,13 +169,17 @@ public class ShopService {
 
     @Transactional(readOnly = true)
     public Page<ShopResponse> getAllShops(Pageable pageable) {
-        return shopRepository.findAll(pageable).map(this::toShopResponse);
+        log.info("getAllShops | page={} | size={}", pageable.getPageNumber(), pageable.getPageSize());
+        Page<ShopResponse> result = shopRepository.findAll(pageable).map(this::toShopResponse);
+        log.info("getAllShops | returned {} of {} total", result.getNumberOfElements(), result.getTotalElements());
+        return result;
     }
 
     @Transactional
     public ShopResponse createShopByAdmin(ShopCreateRequest request) {
         validateUniqueShopFields(request.getSlug(), request.getAdminEmail());
 
+        // SuperAdmin-created shops are pre-approved, so admin user is active immediately
         User admin = User.builder()
                 .name(request.getAdminName())
                 .email(request.getAdminEmail())
@@ -166,6 +189,7 @@ public class ShopService {
                 .isActive(true)
                 .build();
         admin = userRepository.save(admin);
+        log.info("createShopByAdmin | Admin user created (ACTIVE) | email={}", admin.getEmail());
 
         Shop shop = Shop.builder()
                 .name(request.getName())
@@ -174,7 +198,6 @@ public class ShopService {
                 .phone(request.getPhone())
                 .email(request.getEmail())
                 .description(request.getDescription())
-                .isActive(true)
                 .isApproved(true) // Pre-approved when created by Super Admin
                 .admin(admin)
                 .qrVisits(0)
@@ -191,7 +214,7 @@ public class ShopService {
         shopRequirementsRepository.save(requirements);
         shop.setRequirements(requirements);
 
-        log.info("Shop created by Super Admin: {} (slug: {}, pre-approved)", shop.getName(), shop.getSlug());
+        log.info("Shop created by Super Admin: {} (slug: {}, pre-approved, admin active)", shop.getName(), shop.getSlug());
         return toShopResponse(shop);
     }
 
@@ -201,7 +224,29 @@ public class ShopService {
                 .orElseThrow(() -> new ResourceNotFoundException("Shop", "id", shopId));
         shop.setIsApproved(true);
         shopRepository.save(shop);
-        log.info("Shop approved: {}", shopId);
+
+        // Activate the admin user so they can log in
+        User admin = shop.getAdmin();
+        admin.setIsActive(true);
+        userRepository.save(admin);
+
+        log.info("Shop approved: {} | Admin user activated: {}", shopId, admin.getEmail());
+        return toShopResponse(shop);
+    }
+
+    @Transactional
+    public ShopResponse disapproveShop(UUID shopId) {
+        Shop shop = shopRepository.findById(shopId)
+                .orElseThrow(() -> new ResourceNotFoundException("Shop", "id", shopId));
+        shop.setIsApproved(false);
+        shopRepository.save(shop);
+
+        // Deactivate the admin user so they cannot log in
+        User admin = shop.getAdmin();
+        admin.setIsActive(false);
+        userRepository.save(admin);
+
+        log.info("Shop disapproved: {} | Admin user deactivated: {}", shopId, admin.getEmail());
         return toShopResponse(shop);
     }
 
@@ -209,36 +254,35 @@ public class ShopService {
     public void rejectShop(UUID shopId) {
         Shop shop = shopRepository.findById(shopId)
                 .orElseThrow(() -> new ResourceNotFoundException("Shop", "id", shopId));
-        // Hard delete on rejection — cascades to requirements
-        shopRepository.delete(shop);
-        log.info("Shop rejected and deleted: {}", shopId);
-    }
+        User admin = shop.getAdmin();
 
-    @Transactional
-    public ShopResponse toggleActive(UUID shopId) {
-        Shop shop = shopRepository.findById(shopId)
-                .orElseThrow(() -> new ResourceNotFoundException("Shop", "id", shopId));
-        shop.setIsActive(!shop.getIsActive());
-        shopRepository.save(shop);
-        log.info("Shop {} active status toggled to: {}", shopId, shop.getIsActive());
-        return toShopResponse(shop);
+        // Delete shop first (cascades to requirements), then delete the admin user
+        shopRepository.delete(shop);
+        userRepository.delete(admin);
+        log.info("Shop rejected and deleted: {} | Admin user deleted: {}", shopId, admin.getEmail());
     }
 
     @Transactional
     public void deleteShop(UUID shopId) {
         Shop shop = shopRepository.findById(shopId)
                 .orElseThrow(() -> new ResourceNotFoundException("Shop", "id", shopId));
+        User admin = shop.getAdmin();
+
+        // Delete shop first (cascades to requirements), then delete the admin user
         shopRepository.delete(shop);
-        log.info("Shop hard deleted: {}", shopId);
+        userRepository.delete(admin);
+        log.info("Shop hard deleted: {} | Admin user deleted: {}", shopId, admin.getEmail());
     }
 
     // ===== Helpers =====
 
     private void validateUniqueShopFields(String slug, String adminEmail) {
         if (shopRepository.existsBySlug(slug)) {
+            log.warn("Validation FAILED | Duplicate slug={}", slug);
             throw new BadRequestException("A shop with slug '" + slug + "' already exists");
         }
         if (userRepository.existsByEmail(adminEmail)) {
+            log.warn("Validation FAILED | Duplicate admin email={}", adminEmail);
             throw new BadRequestException("A user with email '" + adminEmail + "' already exists");
         }
     }
@@ -267,7 +311,7 @@ public class ShopService {
                 .phone(shop.getPhone())
                 .email(shop.getEmail())
                 .description(shop.getDescription())
-                .isActive(shop.getIsActive())
+                .adminIsActive(admin != null ? admin.getIsActive() : null)
                 .isApproved(shop.getIsApproved())
                 .adminId(admin != null ? admin.getId().toString() : null)
                 .adminEmail(admin != null ? admin.getEmail() : null)
