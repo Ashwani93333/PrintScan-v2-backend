@@ -38,6 +38,9 @@ public class PrintFile {
     @Column(name = "file_path", nullable = false, length = 500)
     private String filePath;
 
+    @Column(name = "file_url", length = 1000)
+    private String fileUrl;
+
     @Column(name = "page_count", nullable = false)
     private Integer pageCount;
 

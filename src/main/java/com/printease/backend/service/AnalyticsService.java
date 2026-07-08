@@ -86,6 +86,7 @@ public class AnalyticsService {
         long totalJobs = printJobRepository.countByShopIdAndCreatedAtBetween(shopId, from, to);
         long completedJobs = printJobRepository.countByShopIdAndStatusAndCreatedAtBetween(shopId, JobStatus.COMPLETED, from, to);
         long totalPages = printJobRepository.sumTotalPagesByShopIdAndStatusCompletedAndCreatedAtBetween(shopId, from, to);
+//        long visits = printJobRepository
         java.math.BigDecimal totalRevenew = printJobRepository.sumEstimatedCostByShopIdAndStatusCompletedAndCreatedAtBetween(shopId, from, to);
         
         log.info("Shop file stats complete | shopId={} | totalJobs={} | completed={} | pages={} | revenue={}",

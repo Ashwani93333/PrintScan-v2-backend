@@ -2,6 +2,7 @@ package com.printease.backend.controller;
 
 import com.printease.backend.dto.request.ShopCreateRequest;
 import com.printease.backend.dto.response.AnalyticsResponse;
+import com.printease.backend.dto.response.ShopFileStatsResponse;
 import com.printease.backend.dto.response.ShopResponse;
 import com.printease.backend.service.AnalyticsService;
 import com.printease.backend.service.ShopService;
@@ -52,7 +53,7 @@ public class SuperAdminController {
     }
 
     @GetMapping("/shops/{shopId}/analytics")
-    public ResponseEntity<com.printease.backend.dto.response.ShopFileStatsResponse> getShopFileStats(
+    public ResponseEntity<ShopFileStatsResponse> getShopFileStats(
             @PathVariable UUID shopId,
             @RequestParam(required = false) String from,
             @RequestParam(required = false) String to) {

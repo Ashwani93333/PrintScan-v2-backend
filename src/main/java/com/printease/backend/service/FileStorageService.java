@@ -24,4 +24,9 @@ public interface FileStorageService {
      * Delete a file by its stored path.
      */
     void delete(String path);
+
+    /**
+     * Get the absolute public URL for the file.
+     */
+    String getPublicUrl(String path);
 }

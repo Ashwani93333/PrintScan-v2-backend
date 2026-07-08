@@ -27,11 +27,14 @@ public class MinioFileStorageServiceImpl implements FileStorageService {
 
     private final MinioClient minioClient;
     private final String bucketName;
+    private final String publicBaseUrl;
 
     public MinioFileStorageServiceImpl(MinioClient minioClient,
-                                       @Value("${app.storage.minio.bucket}") String bucketName) {
+                                       @Value("${app.storage.minio.bucket}") String bucketName,
+                                       @Value("${app.storage.minio.public-base-url:${app.storage.public-base-url:}}") String publicBaseUrl) {
         this.minioClient = minioClient;
         this.bucketName = bucketName;
+        this.publicBaseUrl = publicBaseUrl;
     }
 
     @PostConstruct
@@ -109,5 +112,14 @@ public class MinioFileStorageServiceImpl implements FileStorageService {
                 .replaceAll("[\\\\/:*?\"<>|]", "_")
                 .replaceAll("\\.\\.", "_")
                 .trim();
+    }
+
+    @Override
+    public String getPublicUrl(String path) {
+        if (publicBaseUrl != null && !publicBaseUrl.isBlank()) {
+            String base = publicBaseUrl.endsWith("/") ? publicBaseUrl : publicBaseUrl + "/";
+            return base + path;
+        }
+        return null;
     }
 }

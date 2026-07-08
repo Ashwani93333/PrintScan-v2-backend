@@ -1,0 +1,69 @@
+spring:
+  datasource:
+    # Use Neon's pooled connection string if possible (usually ends with ?sslmode=require)
+    url: ${DATABASE_URL}
+    username: ${DATABASE_USERNAME}
+    password: ${DATABASE_PASSWORD}
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      # Optimized connection pooling for Serverless Postgres (Neon)
+      maximum-pool-size: 15
+      minimum-idle: 2
+      connection-timeout: 20000
+      idle-timeout: 300000
+      max-lifetime: 1200000
+  jpa:
+    hibernate:
+      # 'update' is acceptable for early production, but consider 'validate' + Flyway for mature apps
+      ddl-auto: update
+    show-sql: false
+  sql:
+    init:
+      mode: never
+
+logging:
+  level:
+    root: WARN
+    com.printease.backend: INFO
+
+app:
+  cookie:
+    secure: true
+    # 'None' is MANDATORY when frontend (Vercel) and backend (Railway) are on different domains
+    same-site: None
+  cors:
+    # Set your Vercel frontend URL here
+    allowed-origins: ${FRONTEND_URL:https://your-app.vercel.app}
+  jwt:
+    # Minimum 32 characters long
+    secret: ${JWT_SECRET}
+    expiration-ms: ${JWT_EXPIRATION_MS:86400000}
+  storage:
+    type: minio
+    location: /tmp/uploads
+    minio:
+      # Cloudflare R2 S3 API URL (e.g., https://<ACCOUNT_ID>.r2.cloudflarestorage.com)
+      url: ${R2_ENDPOINT_URL} 
+      access-key: ${R2_ACCESS_KEY}
+      secret-key: ${R2_SECRET_KEY}
+      bucket: ${R2_BUCKET:printease-prod}
+      # The public URL to your R2 bucket (e.g., https://cdn.yourwebsite.com or https://pub-xxx.r2.dev)
+      public-base-url: ${R2_PUBLIC_BASE_URL}
+
+springdoc:
+  # Disable Swagger UI in production for security
+  swagger-ui:
+    enabled: false
+  api-docs:
+    enabled: false
+
+server:
+  port: ${PORT:8080}
+  # Required when running behind proxies like Railway/Render
+  forward-headers-strategy: native
+  tomcat:
+    threads:
+      max: 100
+      min-spare: 10
+    connection-timeout: 20000
+    accept-count: 50

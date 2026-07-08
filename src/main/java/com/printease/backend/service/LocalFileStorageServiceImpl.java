@@ -31,8 +31,11 @@ import java.util.UUID;
 public class LocalFileStorageServiceImpl implements FileStorageService {
 
     private final Path rootLocation;
+    private final String publicBaseUrl;
 
-    public LocalFileStorageServiceImpl(@Value("${app.storage.location:./uploads}") String storageLocation) {
+    public LocalFileStorageServiceImpl(@Value("${app.storage.location:./uploads}") String storageLocation,
+                                       @Value("${app.storage.public-base-url:${app.storage.minio.public-base-url:}}") String publicBaseUrl) {
+        this.publicBaseUrl = publicBaseUrl;
         this.rootLocation = Paths.get(storageLocation).toAbsolutePath().normalize();
         try {
             Files.createDirectories(this.rootLocation);
@@ -94,5 +97,14 @@ public class LocalFileStorageServiceImpl implements FileStorageService {
                 .replaceAll("[\\\\/:*?\"<>|]", "_")
                 .replaceAll("\\.\\.", "_")
                 .trim();
+    }
+
+    @Override
+    public String getPublicUrl(String path) {
+        if (publicBaseUrl != null && !publicBaseUrl.isBlank()) {
+            String base = publicBaseUrl.endsWith("/") ? publicBaseUrl : publicBaseUrl + "/";
+            return base + path;
+        }
+        return null;
     }
 }

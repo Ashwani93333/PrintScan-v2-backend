@@ -61,7 +61,10 @@ public class GlobalExceptionHandler {
     }
 
     @ExceptionHandler(NoHandlerFoundException.class)
-    public ResponseEntity<ApiError> handleNoHandlerFound(NoHandlerFoundException ex, HttpServletRequest request) {
+    public ResponseEntity<?> handleNoHandlerFound(NoHandlerFoundException ex, HttpServletRequest request) {
+        if ("/favicon.ico".equals(request.getRequestURI())) {
+            return ResponseEntity.notFound().build();
+        }
         log.warn("NO_HANDLER | {} {} | endpoint does not exist", request.getMethod(), request.getRequestURI());
         return buildResponse(HttpStatus.NOT_FOUND, "The requested endpoint does not exist", request);
     }

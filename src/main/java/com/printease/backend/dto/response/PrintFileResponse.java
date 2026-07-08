@@ -16,6 +16,7 @@ public class PrintFileResponse {
     private Long sizeBytes;
     private String mimeType;
     private Integer pageCount;
+    private String fileUrl; // url
     private String fileType;   // Derived: "IMAGE" if mimeType starts with "image/", else "DOCUMENT"
     private Boolean colorPrint;
     private Integer copies;

@@ -110,6 +110,7 @@ public class PrintJobService {
                     .mimeType(file.getContentType() != null
                             ? file.getContentType() : "application/octet-stream")
                     .filePath(storedPath)
+                    .fileUrl(fileStorageService.getPublicUrl(storedPath))
                     .pageCount(pageCount)
                     .colorPrint(opt.isColorPrint())
                     .copies(copies)
@@ -368,6 +369,7 @@ public class PrintJobService {
                 .originalName(file.getOriginalName())
                 .sizeBytes(file.getSizeBytes())
                 .mimeType(file.getMimeType())
+                .fileUrl(file.getFileUrl())
                 .pageCount(file.getPageCount())
                 .fileType(fileType)
                 .colorPrint(file.getColorPrint())

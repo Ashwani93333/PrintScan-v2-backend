@@ -1,9 +1,13 @@
-HELP.md
+# Maven
 target/
 .mvn/wrapper/maven-wrapper.jar
 !**/src/main/**/target/
 !**/src/test/**/target/
+build/
+!**/src/main/**/build/
+!**/src/test/**/build/
 
+# IDEs & Editors
 ### STS ###
 .apt_generated
 .classpath
@@ -14,7 +18,7 @@ target/
 .sts4-cache
 
 ### IntelliJ IDEA ###
-.idea
+.idea/
 *.iws
 *.iml
 *.ipr
@@ -25,15 +29,29 @@ target/
 /dist/
 /nbdist/
 /.nb-gradle/
-build/
-!**/src/main/**/build/
-!**/src/test/**/build/
 
 ### VS Code ###
 .vscode/
 
-### Config Files Info ###
+# Config & Environment Files
+.env
+.env.*
+!.env.example
 src/main/resources/application-local.yml
-src/main/resources/application-prod.yml
 src/main/resources/data.sql
 
+# Local Storage (LocalFileStorageServiceImpl default location)
+/uploads/
+
+# OS Generated Files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Other logs & miscellaneous
+*.log
+HELP.md
