@@ -33,7 +33,7 @@ app:
     same-site: None
   cors:
     # Set your Vercel frontend URL here
-    allowed-origins: ${FRONTEND_URL:https://your-app.vercel.app}
+    allowed-origins: ${FRONTEND_URL:http://localhost:5173}
   jwt:
     # Minimum 32 characters long
     secret: ${JWT_SECRET}
@@ -46,7 +46,7 @@ app:
       url: ${R2_ENDPOINT_URL} 
       access-key: ${R2_ACCESS_KEY}
       secret-key: ${R2_SECRET_KEY}
-      bucket: ${R2_BUCKET:printease-prod}
+      bucket: ${R2_BUCKET:printease}
       # The public URL to your R2 bucket (e.g., https://cdn.yourwebsite.com or https://pub-xxx.r2.dev)
       public-base-url: ${R2_PUBLIC_BASE_URL}
 

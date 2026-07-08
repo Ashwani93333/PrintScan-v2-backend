@@ -69,6 +69,10 @@ public class SecurityConfig {
                 }
                 // Trigger attribute-level deferred access too
                 request.setAttribute(CsrfToken.class.getName(), csrf);
+                
+                // Expose token via header for cross-origin frontend
+                response.setHeader(csrf.getHeaderName(), csrf.getToken());
+                
                 filterChain.doFilter(request, response);
             }
         };
