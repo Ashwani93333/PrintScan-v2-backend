@@ -39,6 +39,12 @@ public class SecurityConfig {
     private final AuthEntryPoint authEntryPoint;
     private final CorsConfigurationSource corsConfigurationSource;
 
+    @Value("${app.cookie.secure:false}")
+    private boolean cookieSecure;
+
+    @Value("${app.cookie.same-site:Lax}")
+    private String cookieSameSite;
+
     /**
      * Expose the CSRF token repository as a named bean so it can be injected
      * into AuthController for the /auth/csrf priming endpoint.
@@ -47,16 +53,15 @@ public class SecurityConfig {
     public CsrfTokenRepository csrfTokenRepository() {
         CookieCsrfTokenRepository repository = CookieCsrfTokenRepository.withHttpOnlyFalse();
         repository.setCookieCustomizer(cookie -> cookie
-                .secure(true)
-                .sameSite("None"));
+                .secure(cookieSecure)
+                .sameSite(cookieSameSite));
         return repository;
     }
 
     /**
-     * Eagerly writes the XSRF-TOKEN cookie on every response.
-     * Spring Security 6 uses a deferred/lazy CSRF token by default — the cookie
-     * is only set when something explicitly reads the token. This filter ensures
-     * the cookie is always present so the frontend can read it on any page load.
+     * Eagerly generates the CSRF token (if not present) and exposes it via header.
+     * We don't manually write the cookie here because CookieCsrfTokenRepository
+     * automatically handles it when saveToken is invoked (or via DeferredCsrfToken).
      */
     private OncePerRequestFilter csrfCookieFilter(CsrfTokenRepository repo) {
         return new OncePerRequestFilter() {
@@ -67,21 +72,11 @@ public class SecurityConfig {
                 CsrfToken csrf = repo.loadToken(request);
                 if (csrf == null) {
                     csrf = repo.generateToken(request);
+                    repo.saveToken(csrf, request, response);
                 }
-                // Trigger attribute-level deferred access too
-                request.setAttribute(CsrfToken.class.getName(), csrf);
                 
                 // Expose token via header for cross-origin frontend
                 response.setHeader(csrf.getHeaderName(), csrf.getToken());
-                
-                // Manually write the cookie to guarantee SameSite=None and Secure
-                org.springframework.http.ResponseCookie cookie = org.springframework.http.ResponseCookie.from("XSRF-TOKEN", csrf.getToken())
-                        .secure(true)
-                        .sameSite("None")
-                        .path("/")
-                        .httpOnly(false)
-                        .build();
-                response.addHeader(org.springframework.http.HttpHeaders.SET_COOKIE, cookie.toString());
                 
                 filterChain.doFilter(request, response);
             }
