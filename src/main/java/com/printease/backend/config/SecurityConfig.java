@@ -45,7 +45,11 @@ public class SecurityConfig {
      */
     @Bean
     public CsrfTokenRepository csrfTokenRepository() {
-        return CookieCsrfTokenRepository.withHttpOnlyFalse();
+        CookieCsrfTokenRepository repository = CookieCsrfTokenRepository.withHttpOnlyFalse();
+        repository.setCookieCustomizer(cookie -> cookie
+                .secure(true)
+                .sameSite("None"));
+        return repository;
     }
 
     /**
