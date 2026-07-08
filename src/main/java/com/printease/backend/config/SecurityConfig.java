@@ -117,7 +117,7 @@ public class SecurityConfig {
                         .anyRequest().authenticated()
                 )
                 // Eagerly write XSRF-TOKEN cookie on every response
-                .addFilterBefore(csrfCookieFilter(csrfRepo), UsernamePasswordAuthenticationFilter.class)
+                .addFilterBefore(csrfCookieFilter(csrfRepo), org.springframework.security.web.csrf.CsrfFilter.class)
                 .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
