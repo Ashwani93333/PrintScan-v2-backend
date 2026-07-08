@@ -67,15 +67,21 @@ public class SecurityConfig {
                 CsrfToken csrf = repo.loadToken(request);
                 if (csrf == null) {
                     csrf = repo.generateToken(request);
-                    repo.saveToken(csrf, request, response);
-                } else {
-                    repo.saveToken(csrf, request, response);
                 }
                 // Trigger attribute-level deferred access too
                 request.setAttribute(CsrfToken.class.getName(), csrf);
                 
                 // Expose token via header for cross-origin frontend
                 response.setHeader(csrf.getHeaderName(), csrf.getToken());
+                
+                // Manually write the cookie to guarantee SameSite=None and Secure
+                org.springframework.http.ResponseCookie cookie = org.springframework.http.ResponseCookie.from("XSRF-TOKEN", csrf.getToken())
+                        .secure(true)
+                        .sameSite("None")
+                        .path("/")
+                        .httpOnly(false)
+                        .build();
+                response.addHeader(org.springframework.http.HttpHeaders.SET_COOKIE, cookie.toString());
                 
                 filterChain.doFilter(request, response);
             }
