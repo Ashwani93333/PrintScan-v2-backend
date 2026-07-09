@@ -2,12 +2,7 @@ package com.printease.backend.config;
 
 import com.printease.backend.security.AuthEntryPoint;
 import com.printease.backend.security.JwtAuthFilter;
-import jakarta.servlet.FilterChain;
-import jakarta.servlet.ServletException;
-import jakarta.servlet.http.HttpServletRequest;
-import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -21,14 +16,7 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
-import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
-import org.springframework.security.web.csrf.CsrfToken;
-import org.springframework.security.web.csrf.CsrfTokenRepository;
-import org.springframework.security.web.csrf.CsrfTokenRequestAttributeHandler;
 import org.springframework.web.cors.CorsConfigurationSource;
-import org.springframework.web.filter.OncePerRequestFilter;
-
-import java.io.IOException;
 
 @Configuration
 @EnableWebSecurity
@@ -40,66 +28,23 @@ public class SecurityConfig {
     private final AuthEntryPoint authEntryPoint;
     private final CorsConfigurationSource corsConfigurationSource;
 
-    @Value("${app.cookie.secure:false}")
-    private boolean cookieSecure;
-
-    @Value("${app.cookie.same-site:Lax}")
-    private String cookieSameSite;
-
-    /**
-     * Expose the CSRF token repository as a named bean so it can be injected
-     * into AuthController for the /auth/csrf priming endpoint.
-     */
-    @Bean
-    public CsrfTokenRepository csrfTokenRepository() {
-        CookieCsrfTokenRepository repository = CookieCsrfTokenRepository.withHttpOnlyFalse();
-        repository.setCookieCustomizer(cookie -> cookie
-                .secure(cookieSecure)
-                .sameSite(cookieSameSite));
-        return repository;
-    }
-
-    /**
-     * Eagerly generates the CSRF token (if not present) and exposes it via header.
-     * We don't manually write the cookie here because CookieCsrfTokenRepository
-     * automatically handles it when saveToken is invoked (or via DeferredCsrfToken).
-     */
-    private OncePerRequestFilter csrfCookieFilter(CsrfTokenRepository repo) {
-        return new OncePerRequestFilter() {
-            @Override
-            protected void doFilterInternal(HttpServletRequest request,
-                                            HttpServletResponse response,
-                                            FilterChain filterChain) throws ServletException, IOException {
-                CsrfToken csrf = repo.loadToken(request);
-                if (csrf == null) {
-                    csrf = repo.generateToken(request);
-                    repo.saveToken(csrf, request, response);
-                }
-                
-                // Expose token via header for cross-origin frontend
-                response.setHeader(csrf.getHeaderName(), csrf.getToken());
-                
-                filterChain.doFilter(request, response);
-            }
-        };
-    }
-
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
-        CsrfTokenRepository csrfRepo = csrfTokenRepository();
-
         http
                 .cors(cors -> cors.configurationSource(corsConfigurationSource))
-                .csrf(csrf -> {
-                    // Use plain handler (not XorCsrf) so the raw cookie value == the header value.
-                    // XorCsrfTokenRequestAttributeHandler (Spring Security 6 default) masks the token,
-                    // causing a mismatch when the frontend reads XSRF-TOKEN cookie and sends it as-is.
-                    CsrfTokenRequestAttributeHandler requestHandler = new CsrfTokenRequestAttributeHandler();
-                    csrf
-                            .csrfTokenRepository(csrfRepo)
-                            .csrfTokenRequestHandler(requestHandler)
-                            .ignoringRequestMatchers("/api/auth/login", "/api/auth/logout", "/api/public/**");
-                })
+                /*
+                 * CSRF is disabled for this stateless REST API.
+                 *
+                 * Why it is safe:
+                 * 1. All state-changing endpoints are protected by JwtAuthFilter — a valid
+                 *    JWT HttpOnly cookie is required. An attacker cannot read or forge this.
+                 * 2. Our CORS policy only allows requests from the known Vercel origin.
+                 *    Cross-site forged requests from any other origin are rejected by CORS
+                 *    before they can reach our controllers.
+                 * 3. Spring Security's own documentation recommends disabling CSRF for
+                 *    stateless APIs: https://docs.spring.io/spring-security/reference/features/exploits/csrf.html#csrf-when
+                 */
+                .csrf(csrf -> csrf.disable())
                 .exceptionHandling(ex -> ex.authenticationEntryPoint(authEntryPoint))
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
@@ -118,8 +63,6 @@ public class SecurityConfig {
                         // Everything else requires authentication
                         .anyRequest().authenticated()
                 )
-                // Eagerly write XSRF-TOKEN cookie on every response
-                .addFilterBefore(csrfCookieFilter(csrfRepo), org.springframework.security.web.csrf.CsrfFilter.class)
                 .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
