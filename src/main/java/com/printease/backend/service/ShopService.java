@@ -11,6 +11,7 @@ import com.printease.backend.entity.User;
 import com.printease.backend.entity.enums.Role;
 import com.printease.backend.exception.BadRequestException;
 import com.printease.backend.exception.ResourceNotFoundException;
+import com.printease.backend.repository.PrintJobRepository;
 import com.printease.backend.repository.ShopRepository;
 import com.printease.backend.repository.ShopRequirementsRepository;
 import com.printease.backend.repository.UserRepository;
@@ -35,6 +36,7 @@ public class ShopService {
     private final ShopRepository shopRepository;
     private final ShopRequirementsRepository shopRequirementsRepository;
     private final UserRepository userRepository;
+    private final PrintJobRepository printJobRepository;
     private final PasswordEncoder passwordEncoder;
     private final QrCodeGenerator qrCodeGenerator;
 
@@ -256,7 +258,11 @@ public class ShopService {
                 .orElseThrow(() -> new ResourceNotFoundException("Shop", "id", shopId));
         User admin = shop.getAdmin();
 
-        // Delete shop first (cascades to requirements), then delete the admin user
+        // Delete all print jobs (and their files via cascade) belonging to this shop first
+        printJobRepository.deleteAll(printJobRepository.findByShopId(shopId, org.springframework.data.domain.Pageable.unpaged()).getContent());
+        log.info("rejectShop | Deleted all print jobs for shopId={}", shopId);
+
+        // Delete shop (cascades to requirements), then delete the admin user
         shopRepository.delete(shop);
         userRepository.delete(admin);
         log.info("Shop rejected and deleted: {} | Admin user deleted: {}", shopId, admin.getEmail());
@@ -268,7 +274,11 @@ public class ShopService {
                 .orElseThrow(() -> new ResourceNotFoundException("Shop", "id", shopId));
         User admin = shop.getAdmin();
 
-        // Delete shop first (cascades to requirements), then delete the admin user
+        // Delete all print jobs (and their files via cascade) belonging to this shop first
+        printJobRepository.deleteAll(printJobRepository.findByShopId(shopId, org.springframework.data.domain.Pageable.unpaged()).getContent());
+        log.info("deleteShop | Deleted all print jobs for shopId={}", shopId);
+
+        // Delete shop (cascades to requirements), then delete the admin user
         shopRepository.delete(shop);
         userRepository.delete(admin);
         log.info("Shop hard deleted: {} | Admin user deleted: {}", shopId, admin.getEmail());
