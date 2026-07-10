@@ -32,7 +32,8 @@ public class AuthService {
     @Transactional(readOnly = true)
     public JwtResponse login(LoginRequest request) {
         log.info("Login attempt for email={}", request.getEmail());
-        User user = userRepository.findByEmail(request.getEmail())
+        
+        User user = userRepository.findByEmailIgnoreCase(request.getEmail())
                 .orElseThrow(() -> {
                     log.warn("Login FAILED | email={} | user not found", request.getEmail());
                     return new UnauthorizedException("Invalid email or password");
